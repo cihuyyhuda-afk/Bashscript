@@ -41,7 +41,7 @@ echo "Instalasi selesai."
 echo "Membuat streamlit_app.py..."
 cat > streamlit_app.py << EOF
 import streamlit as st
-from streamlit_webrtc import webrtc_stream, WebRtcMode
+from streamlit_webrtc import webrtc_stream_session, WebRtcMode
 import cv2
 from ultralytics import YOLO
 import numpy as np
@@ -77,7 +77,7 @@ st.title("Object Detection Real-Time (YOLOv8 via WebRTC) 🚀")
 st.markdown("Aplikasi ini menggunakan kamera Anda melalui **WebRTC** untuk menjalankan deteksi objek **YOLOv8** di server.")
 
 # Konfigurasi WebRTC
-webrtc_ctx = webrtc_stream(
+webrtc_ctx = webrtc_stream_session(
     key="yolo-detection",
     mode=WebRtcMode.SENDRECV, # Mengirim video (dari klien) dan menerima (hasil)
     video_frame_callback=video_frame_callback,
