@@ -27,7 +27,7 @@ echo "Lingkungan virtual diaktifkan."
 # 3. Menginstal Dependensi
 echo "Menginstal dependensi (streamlit, streamlit-webrtc, ultralytics, opencv-python)..."
 # Perintah 'pip' akan menginstal ke dalam lingkungan virtual
-pip install streamlit streamlit-webrtc opencv-python tensorflow
+pip install numpy ultralytics cv2 streamlit streamlit-webrtc opencv-python tensorflow
 if [ $? -ne 0 ]; then
     echo "ERROR: Gagal menginstal dependensi. Pastikan Python 3 dan pip sudah terinstal."
     deactivate
@@ -118,10 +118,11 @@ echo "----------------------------------------------------------------------"
 echo "Tekan CTRL+C di terminal ini untuk menghentikan aplikasi."
 
 # Menjalankan aplikasi Streamlit
-streamlit run streamlit_app.py --server.address 0.0.0.0
+nohup streamlit run streamlit_app.py --server.address 0.0.0.0 &
 
 # Setelah CTRL+C ditekan
-echo "Aplikasi dihentikan."
+echo "Aplikasi berjalan."
+sleep 6666666666666
 
 # 6. Deaktivasi Lingkungan Virtual
 deactivate
