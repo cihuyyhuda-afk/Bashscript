@@ -118,7 +118,7 @@ echo "----------------------------------------------------------------------"
 echo "Tekan CTRL+C di terminal ini untuk menghentikan aplikasi."
 
 # Menjalankan aplikasi Streamlit
-nohup streamlit run streamlit_app.py --server.address 0.0.0.0 &
+sudo streamlit run streamlit_app.py --server.address 0.0.0.0
 
 # Setelah CTRL+C ditekan
 echo "Aplikasi berjalan."
