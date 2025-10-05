@@ -27,7 +27,7 @@ echo "Lingkungan virtual diaktifkan."
 # 3. Menginstal Dependensi
 echo "Menginstal dependensi (streamlit, streamlit-webrtc, ultralytics, opencv-python)..."
 # Perintah 'pip' akan menginstal ke dalam lingkungan virtual
-pip install streamlit ultralytics opencv-python Pillow
+pip install av streamlit ultralytics opencv-python Pillow streamlit-webrtc
 if [ $? -ne 0 ]; then
     echo "ERROR: Gagal menginstal dependensi. Pastikan Python 3 dan pip sudah terinstal."
     deactivate
@@ -41,106 +41,61 @@ echo "Instalasi selesai."
 echo "Membuat streamlit_app.py..."
 cat > streamlit_app.py << EOF
 import streamlit as st
-import cv2
-from ultralytics import YOLO
+import streamlit as st
 import numpy as np
-from PIL import Image
+import av
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+from ultralytics import YOLO
 
-# 1. Muat Model YOLO
-# Menggunakan YOLOv8n (nano) karena cepat dan cocok untuk real-time
+# 1. Muat Model YOLO (dengan caching)
 @st.cache_resource
 def load_yolo_model():
-    # Ganti 'yolov8n.pt' dengan model lain jika perlu (misal 'yolov8m.pt')
+    # Menggunakan YOLOv8n (nano)
     model = YOLO('yolov8n.pt') 
     return model
 
 model = load_yolo_model()
+CONFIDENCE_THRESHOLD = 0.25 
+
+# 2. Definisi Video Transformer untuk Deteksi Objek
+# Kelas ini akan memproses setiap frame yang datang dari webcam client
+class YOLOVideoTransformer(VideoTransformerBase):
+    def transform(self, frame: av.VideoFrame) -> np.ndarray:
+        # Konversi frame AV ke numpy array (format BGR)
+        img = frame.to_ndarray(format="bgr24") 
+
+        # Lakukan Inferensi YOLOv8
+        # Kami menggunakan img (BGR) karena Ultralytics dapat menangani BGR/RGB
+        results = model(img, conf=CONFIDENCE_THRESHOLD, verbose=False) 
+
+        # Ambil frame yang sudah dianotasi (sudah BGR)
+        annotated_frame = results[0].plot()
+
+        # Kembalikan frame (harus dalam format BGR/RGB yang didukung)
+        return annotated_frame
+
 # --- Tampilan Streamlit ---
-st.title("Real-time Object Detector (YOLOv8 + Streamlit)")
-st.caption("Deteksi objek menggunakan live webcam")
+st.title("Real-time Object Detector (WebRTC + YOLOv8)")
+st.caption("Meminta izin kamera pengguna untuk deteksi real-time")
 
-# Tempat untuk menampilkan video stream yang dianotasi
-frame_placeholder = st.empty()
+# 3. Widget webrtc_streamer
+# Memanggil widget ini akan memunculkan permintaan izin kamera di browser user.
+ctx = webrtc_streamer(
+    key="yolo-detection-stream",
+    video_processor_factory=YOLOVideoTransformer,
+    rtc_configuration={
+        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+    },
+    media_stream_constraints={"video": True, "audio": False},
+)
 
-# Tombol untuk memulai dan menghentikan deteksi
-col1, col2 = st.columns(2)
-with col1:
-    start_button = st.button("Mulai Deteksi", type="primary")
-with col2:
-    stop_button = st.button("Hentikan Deteksi")
+if ctx.state.playing:
+    st.success("Webcam aktif! Deteksi dimulai...")
+else:
+    st.warning("Menunggu izin kamera...")
 
-# --- Konfigurasi Deteksi (Opsional) ---
-st.sidebar.header("Pengaturan Deteksi")
-confidence = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.25)
-
-# --- Logika Deteksi Real-time ---
-if 'running' not in st.session_state:
-    st.session_state.running = False
-
-if start_button:
-    st.session_state.running = True
-
-if stop_button:
-    st.session_state.running = False
-
-cap = None
-
-if st.session_state.running:
-    try:
-        # Menggunakan webcam (0 adalah ID webcam default)
-        cap = cv2.VideoCapture(0) 
-
-        if not cap.isOpened():
-            st.error("Gagal mengakses webcam. Pastikan tidak ada aplikasi lain yang menggunakan webcam.")
-            st.session_state.running = False
-
-        while st.session_state.running and cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                st.warning("Gagal membaca frame dari webcam.")
-                break
-
-            # Konversi BGR (OpenCV) ke RGB (YOLO/Streamlit)
-            # frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            # 2. Lakukan Deteksi dengan YOLOv8
-            # Pengaturan: conf= confidence threshold, stream=True untuk performa video
-            results = model(frame, conf=confidence, stream=True)  
-
-            # 3. Anotasi Frame
-            for r in results:
-                # Plot bounding box dan label ke frame (fungsi bawaan YOLOv8)
-                annotated_frame = r.plot()
-                
-                # Konversi hasil plot (numpy array BGR) ke RGB untuk Streamlit
-                annotated_frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                
-                # 4. Tampilkan Frame yang Dianotasi
-                frame_placeholder.image(
-                    annotated_frame_rgb, 
-                    channels="RGB", 
-                    caption="Deteksi Real-time", 
-                    use_column_width=True
-                )
-                
-            # Kontrol kecepatan loop (misalnya 1 ms delay)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                st.session_state.running = False
-                break
-                
-    except Exception as e:
-        st.error(f"Terjadi error: {e}")
-        st.session_state.running = False
-
-    finally:
-        # Pastikan webcam dilepaskan ketika loop berakhir
-        if cap is not None and cap.isOpened():
-            cap.release()
-            
-        if st.session_state.running == False:
-            frame_placeholder.empty() # Kosongkan placeholder setelah berhenti
-            st.warning("Deteksi Dihentikan.")
-            
+# Anda bisa menambahkan slider di sini untuk mengubah CONFIDENCE_THRESHOLD
+# (membutuhkan sedikit logika tambahan untuk mengupdate nilai di dalam kelas)
 
 EOF
 
