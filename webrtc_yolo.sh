@@ -27,7 +27,7 @@ echo "Lingkungan virtual diaktifkan."
 # 3. Menginstal Dependensi
 echo "Menginstal dependensi (streamlit, streamlit-webrtc, ultralytics, opencv-python)..."
 # Perintah 'pip' akan menginstal ke dalam lingkungan virtual
-pip install streamlit streamlit-webrtc ultralytics opencv-python numpy av
+pip install streamlit streamlit-webrtc opencv-python tensorflow
 if [ $? -ne 0 ]; then
     echo "ERROR: Gagal menginstal dependensi. Pastikan Python 3 dan pip sudah terinstal."
     deactivate
@@ -40,69 +40,72 @@ echo "Instalasi selesai."
 # --- Kode Python: streamlit_app.py ---
 echo "Membuat streamlit_app.py..."
 cat > streamlit_app.py << EOF
-import streamlit as st
-from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import cv2
-from ultralytics import YOLO
+import streamlit as st
 import numpy as np
-import av
+import tensorflow as tf
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.mobilenet_v2 import decode_predictions
 
-# Konfigurasi halaman Streamlit
-st.set_page_config(page_title="YOLO WebRTC Detector", layout="wide")
+# Model Setup
+model = MobileNetV2(weights="imagenet")
 
-# Memuat Model YOLOv8 (nano)
-@st.cache_resource
-def load_yolo_model():
-    # Model akan didownload otomatis jika belum ada
-    return YOLO('yolov8n.pt') 
+# Object detection function
+def detect_objects(frame):
+    # Convert image to RGB
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    img = image.array_to_img(rgb_frame)
+    img = img.resize((224, 224))
+    img_array = image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_array = preprocess_input(img_array)
 
-model = load_yolo_model()
+    preds = model.predict(img_array)
+    decoded_preds = decode_predictions(preds, top=3)[0]
 
-# Fungsi callback yang dipanggil untuk setiap frame dari kamera pengguna
-def video_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
-    # Konversi frame WebRTC (AV) ke array numpy (OpenCV format BGR)
-    img = frame.to_ndarray(format="bgr") 
-    
-    # --- Deteksi Objek dengan YOLO ---
-    # Jalankan inferensi. stream=False dan verbose=False untuk efisiensi
-    results = model(img, stream=False, verbose=False)
-    
-    # Mendapatkan frame dengan bounding box yang sudah digambar oleh YOLO
-    annotated_frame = results[0].plot()
-    
-    # Mengembalikan frame yang sudah di-annotate
-    return av.VideoFrame.from_ndarray(annotated_frame, format="bgr")
+    # Show top prediction
+    label = decoded_preds[0][1]
+    confidence = decoded_preds[0][2]
 
-st.title("Object Detection Real-Time (YOLOv8 via WebRTC) 🚀")
-st.markdown("Aplikasi ini menggunakan kamera Anda melalui **WebRTC** untuk menjalankan deteksi objek **YOLOv8** di server.")
+    # Draw the label on the frame
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    frame = cv2.putText(frame, f"{label}: {confidence:.2f}", (10, 30), font, 1, (255, 0, 0), 2)
 
-# Konfigurasi WebRTC
-webrtc_ctx = webrtc_streamer(
-    key="yolo-detection",
-    mode=WebRtcMode.SENDRECV, # Mengirim video (dari klien) dan menerima (hasil)
-    video_frame_callback=video_frame_callback,
-    media_stream_constraints={"video": True, "audio": False}, # Hanya aktifkan video
-    async_processing=True,
+    return frame
+
+# Streamlit Interface
+st.title("Real-Time Object Detection with Streamlit WebRTC")
+
+st.write(
+    "This application performs real-time object detection using Streamlit and WebRTC."
 )
 
-# Status tampilan
-if webrtc_ctx.video_receiver:
-    st.info("Deteksi Aktif! Kamera Anda digunakan. Beri izin kamera di browser.")
-else:
-    st.warning("Menunggu izin kamera dari browser Anda. Harap berikan izin.")
+# WebRTC configuration for streaming
+rtc_configuration = RTCConfiguration({
+    "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+})
 
-st.markdown("""
-<style>
-    /* Styling untuk tombol "Start" WebRTC */
-    .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        font-size: 16px;
-        padding: 10px 24px;
-        border-radius: 8px;
-    }
-</style>
-""", unsafe_allow_html=True)
+# WebRTC streamer callback
+def video_frame_callback(frame):
+    # Convert frame to numpy array
+    img = frame.to_ndarray(format="bgr24")
+    
+    # Detect objects
+    img = detect_objects(img)
+
+    # Convert back to stream format
+    return img
+
+# Start WebRTC stream
+webrtc_streamer(
+    key="object-detection",
+    mode=WebRtcMode.SENDRECV,
+    rtc_configuration=rtc_configuration,
+    video_frame_callback=video_frame_callback,
+    async_processing=True
+)
 EOF
 
 # 5. Menjalankan Aplikasi
