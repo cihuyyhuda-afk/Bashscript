@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Nama folder proyek utama
-PROJECT_DIR="yolo_webrtc_app"
+PROJECT_DIR="webrtc_app"
 # Nama lingkungan virtual
 VENV_NAME=".venv"
 
@@ -27,7 +27,7 @@ echo "Lingkungan virtual diaktifkan."
 # 3. Menginstal Dependensi
 echo "Menginstal dependensi (streamlit, streamlit-webrtc, ultralytics, opencv-python)..."
 # Perintah 'pip' akan menginstal ke dalam lingkungan virtual
-pip install numpy ultralytics streamlit streamlit-webrtc opencv-python tensorflow
+pip install streamlit opencv-python opencv-python-headless tensorflow
 if [ $? -ne 0 ]; then
     echo "ERROR: Gagal menginstal dependensi. Pastikan Python 3 dan pip sudah terinstal."
     deactivate
@@ -41,71 +41,55 @@ echo "Instalasi selesai."
 echo "Membuat streamlit_app.py..."
 cat > streamlit_app.py << EOF
 import cv2
-import streamlit as st
 import numpy as np
+import streamlit as st
 import tensorflow as tf
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
-from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.applications.mobilenet_v2 import decode_predictions
 
-# Model Setup
-model = MobileNetV2(weights="imagenet")
+# Load pre-trained model
+net = cv2.dnn.readNetFromTensorflow('ssd_mobilenet_v2_coco.pb')
 
-# Object detection function
+# Function to perform object detection
 def detect_objects(frame):
-    # Convert image to RGB
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    img = image.array_to_img(rgb_frame)
-    img = img.resize((224, 224))
-    img_array = image.img_to_array(img)
-    img_array = np.expand_dims(img_array, axis=0)
-    img_array = preprocess_input(img_array)
+    height, width, _ = frame.shape
+    blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300), (127.5, 127.5, 127.5), True, crop=False)
+    net.setInput(blob)
+    detections = net.forward()
 
-    preds = model.predict(img_array)
-    decoded_preds = decode_predictions(preds, top=3)[0]
-
-    # Show top prediction
-    label = decoded_preds[0][1]
-    confidence = decoded_preds[0][2]
-
-    # Draw the label on the frame
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    frame = cv2.putText(frame, f"{label}: {confidence:.2f}", (10, 30), font, 1, (255, 0, 0), 2)
-
+    for i in range(detections.shape[2]):
+        confidence = detections[0, 0, i, 2]
+        if confidence > 0.5:
+            box = detections[0, 0, i, 3:7] * np.array([width, height, width, height])
+            (x1, y1, x2, y2) = box.astype("int")
+            label = int(detections[0, 0, i, 1])
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame, f"Object {label}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
     return frame
 
-# Streamlit Interface
-st.title("Real-Time Object Detection with Streamlit WebRTC")
+# Streamlit app
+st.title("Real-Time Object Detection with Streamlit")
 
-st.write(
-    "This application performs real-time object detection using Streamlit and WebRTC."
-)
+# Start video capture
+cap = cv2.VideoCapture(0)
 
-# WebRTC configuration for streaming
-rtc_configuration = RTCConfiguration({
-    "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
-})
+if not cap.isOpened():
+    st.error("Error: Could not open webcam.")
+else:
+    stframe = st.empty()
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-# WebRTC streamer callback
-def video_frame_callback(frame):
-    # Convert frame to numpy array
-    img = frame.to_ndarray(format="bgr24")
-    
-    # Detect objects
-    img = detect_objects(img)
+        # Perform object detection
+        frame = detect_objects(frame)
 
-    # Convert back to stream format
-    return img
+        # Convert BGR to RGB for Streamlit display
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-# Start WebRTC stream
-webrtc_streamer(
-    key="object-detection",
-    mode=WebRtcMode.SENDRECV,
-    rtc_configuration=rtc_configuration,
-    video_frame_callback=video_frame_callback,
-    async_processing=True
-)
+        # Display the frame
+        stframe.image(frame_rgb, channels="RGB", use_column_width=True)
+
+    cap.release()
 EOF
 
 # 5. Menjalankan Aplikasi
@@ -118,7 +102,7 @@ echo "----------------------------------------------------------------------"
 echo "Tekan CTRL+C di terminal ini untuk menghentikan aplikasi."
 
 # Menjalankan aplikasi Streamlit
-streamlit run streamlit_app.py --server.address 0.0.0.0
+streamlit run streamlit_app.py
 
 # Setelah CTRL+C ditekan
 echo "Aplikasi berjalan."
