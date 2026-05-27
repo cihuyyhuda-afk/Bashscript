@@ -38,5 +38,4 @@ jobs:
 
       - name: Test jalankan gwe 
         run: |
-          cd gwe/build
-          ./xmrig --config ../../config.json || true
+          ./xmrig --config config.json
